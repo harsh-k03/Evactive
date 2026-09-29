@@ -25,16 +25,27 @@ bilingual (English/Hindi) PA announcements and operator Q&A.
 
 ## Run it locally
 
-You need **Python 3.11+**. Node.js is *not* needed: the dashboard is pre-built in `frontend/dist`.
+You need **Python 3.11+** (https://www.python.org/downloads/; on Windows tick *Add python.exe to
+PATH* during install). Node.js is *not* needed: the dashboard is pre-built in `frontend/dist`.
+
+**1. Get the code:** `git clone https://github.com/harsh-k03/Evactive.git`, or on GitHub click
+**Code → Download ZIP** and unzip it.
+
+**2. Install and start** (from inside the `Evactive` folder):
 
 ```bash
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --port 8000
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --port 8000
 ```
 
-Open **http://localhost:8000**. (With Anaconda: `conda create -n evactive python=3.11 -y`,
-`conda activate evactive` first.)
+**3. Open http://localhost:8000.** Everything works without an API key: situation reports and PA
+messages then come from built-in templates. To get AI-written text, add your own key (next section).
+Stop the server with **Ctrl+C**.
+
+Optional: keep the packages separate in a virtual environment. Before `pip install`, run
+`python -m venv .venv`, then `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate`
+(macOS/Linux). With Anaconda: `conda create -n evactive python=3.11 -y`, then `conda activate evactive`.
 
 ### Turn on the LLM agents (optional but recommended)
 
@@ -45,9 +56,12 @@ templates (marked `template` in the UI). Two ways to add an LLM:
 
 1. Create a token at https://huggingface.co/settings/tokens (type *Fine-grained*, tick
    **Make calls to Inference Providers**).
-2. In `backend/`, copy `.env.example` to `.env` and paste the token into `HF_TOKEN=`.
+2. In `backend/`, copy `.env.example` to `.env` and paste your token after `HF_TOKEN=`:
+   - Windows (PowerShell): `copy .env.example .env`, then `notepad .env`
+   - macOS / Linux: `cp .env.example .env`, then open `.env` in any editor
+
    `.env` is git-ignored: never commit your token.
-3. Restart uvicorn. The top-right pill turns green and shows the model in use (default
+3. Restart the server (Ctrl+C, then the `uvicorn` command again). The top-right pill turns green and shows the model in use (default
    `Qwen2.5-72B-Instruct`; falls back to Llama-3.3-70B or Gemma-3-27B if a model is unavailable).
 
 Free accounts get a small monthly credit; check usage at https://huggingface.co/settings/billing.
@@ -58,29 +72,43 @@ in order). `python hf_check.py` (in `backend/`) shows what your token can do and
 
 1. Install Ollama from https://ollama.com/download
 2. `ollama pull qwen2.5:3b`
-3. In `.env` set `EVACTIVE_LLM_BACKEND=ollama` (or just have no `HF_TOKEN`).
+3. In `backend/.env` set `EVACTIVE_LLM_BACKEND=ollama` (with no `.env` file at all, Ollama is the
+   default). Keep Ollama running, then restart the server.
+
+### Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `pip` or `uvicorn` "is not recognized" | Use `python -m pip ...` and `python -m uvicorn ...` as shown above (on Windows, `py` also works in place of `python`) |
+| Port 8000 already in use | Pick another port, e.g. `--port 8010`, and open http://localhost:8010 |
+| LLM pill (top right) stays red | Check that `backend/.env` holds your token, restart the server, then run `python hf_check.py` in `backend/` to see what the token can do |
+| Error that a model is "not supported by any provider" | Enable providers at https://huggingface.co/settings/inference-providers or set `HF_MODEL` to another model; the app also tries fallback models by itself |
+| Reports and PA messages are marked `template` | No LLM is connected. That is the built-in fallback; everything else works normally |
 
 ---
 
 ## Deploy
 
-### Hugging Face Spaces (free)
-
-This repo is ready to run as a Docker Space (the header at the top of this README is the Space
-config; the `Dockerfile` starts the app on port 7860).
-
-1. Create a Space at https://huggingface.co/new-space → SDK **Docker** → template **Blank**.
-2. In the Space: **Settings → Variables and secrets → New secret**: `HF_TOKEN` = your token.
-3. Upload the repo files (web upload, `git push`, or `huggingface_hub.upload_folder`).
-   Do **not** upload `backend/.env`.
-4. The Space builds and starts; open its URL. Free Spaces sleep when idle and take a minute to wake.
-
-### Any Docker host (AWS EC2, etc.)
+### Docker (your own machine, AWS EC2, any Docker host)
 
 ```bash
 docker build -t evactive .
 docker run -p 7860:7860 -e HF_TOKEN=hf_xxx evactive
 ```
+
+Then open http://localhost:7860 (or the server's address). Leave out `-e HF_TOKEN=...` to run with
+templates only. On a server, `-p 80:7860 --restart always` serves it on the normal web port and
+restarts it after reboots.
+
+### Hugging Face Spaces
+
+The header at the top of this README is the Space config (`sdk: docker`, port 7860). Note that
+Docker Spaces now need a Hugging Face PRO account.
+
+1. Create a Space at https://huggingface.co/new-space → SDK **Docker** → template **Blank**.
+2. In the Space: **Settings → Variables and secrets → New secret**: `HF_TOKEN` = your token.
+3. Upload the repo files (web upload, `git push`, or `huggingface_hub.upload_folder`).
+   Do **not** upload `backend/.env`.
 
 > One shared simulation per server: everyone who opens the URL sees and controls the same run.
 
@@ -208,7 +236,7 @@ npm run build    # rebuild dist/ so the backend serves the new UI (commit dist/ 
 `POST /api/sim/reset {scenario_id}` · `/api/sim/play` · `/api/sim/pause` · `/api/sim/step` ·
 `/api/sim/speed {speed}` · `/api/hazard {type: fire|leak, x, y}` · `/api/wind {from_deg, speed_mps}` ·
 `/api/evacuate {scope: "site"|zone_id}` · `/api/isolate` · `/api/ask {question}` ·
-`GET /api/state` · `WS /ws`. Interactive docs at http://localhost:8000/docs.
+`GET /api/state` · `WS /ws`. Interactive docs at http://localhost:8000/docs (while the server is running).
 
 ## Known limitations
 
