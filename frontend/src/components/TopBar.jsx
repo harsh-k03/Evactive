@@ -18,6 +18,12 @@ export default function TopBar({ init, frame, connected, onError }) {
   const stage = STAGE_COLORS[f?.stage ?? 0]
   const since = f?.started_t != null ? f.t - f.started_t : null
   const run = (p) => p.catch((e) => onError?.(e.message))
+  const llmOn = f?.llm?.enabled !== false
+  const [llmBusy, setLlmBusy] = useState(false)
+  const toggleLlm = () => {
+    setLlmBusy(true)
+    run(api.llm(!llmOn)).finally(() => setLlmBusy(false))
+  }
 
   return (
     <header className="topbar">
@@ -70,9 +76,17 @@ export default function TopBar({ init, frame, connected, onError }) {
 
       <div className="status">
         <span className={`pill ${connected ? 'ok' : 'bad'}`}>{connected ? 'LIVE' : 'OFFLINE'}</span>
-        <span className={`pill ${f?.llm?.online ? 'ok' : 'warn'}`}
-          title={f?.llm?.online ? `${f.llm.calls} LLM calls, ${f.llm.tokens} tokens this session · last reply ${f.llm.latency_ms ?? '-'} ms` : (f?.llm?.error || f?.llm?.url)}>
-          LLM {f?.llm?.online ? f.llm.model : 'offline'}
+        <button type="button" role="switch" aria-checked={llmOn} disabled={llmBusy || !f}
+          className={`ai-switch ${llmOn ? 'on' : ''}`} onClick={toggleLlm}
+          title={llmOn
+            ? 'AI-written reports and announcements are ON. Click to switch to rule-based templates (uses no LLM credits). Applies to everyone viewing this server.'
+            : 'AI text is OFF: reports and announcements use rule-based templates. Click to turn the LLM back on. Applies to everyone viewing this server.'}>
+          <span className="track"><span className="knob" /></span>AI
+        </button>
+        <span className={`pill ${f?.llm?.online ? 'ok' : llmOn ? 'warn' : 'muted'}`}
+          title={f?.llm?.online ? `${f.llm.model} · ${f.llm.calls} LLM calls, ${f.llm.tokens} tokens this session · last reply ${f.llm.latency_ms ?? '-'} ms`
+            : llmOn ? (f?.llm?.error || f?.llm?.url) : 'AI text switched off'}>
+          LLM {f?.llm?.online ? f.llm.model.replace(/-Instruct$/i, '') : llmOn ? (llmBusy ? 'connecting...' : 'offline') : 'off'}
         </span>
       </div>
     </header>

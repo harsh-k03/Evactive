@@ -5,6 +5,7 @@ and produces frames for the dashboard.
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import Awaitable, Callable
 
 import numpy as np
@@ -19,6 +20,19 @@ from .sim.sensors import SensorNetwork
 from .sim.workers import ALERTED, EVACUATING, INJURED, SAFE, TRAPPED, WORKING, spawn_workers
 
 STAGES = {0: "NORMAL", 1: "ALERT", 2: "ZONE EVACUATION", 3: "SITE EVACUATION"}
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
+# Auto-pause (saves LLM credits when a run is left going): pause this many sim-seconds after
+# ALL CLEAR, and every EVACTIVE_MAX_INCIDENT_MIN simulated minutes of incident (0 = never).
+AFTER_CLEAR_PAUSE_S = 60
+MAX_INCIDENT_S = _int_env("EVACTIVE_MAX_INCIDENT_MIN", 20) * 60
 MAX_PER_CELL = 3
 
 
@@ -73,6 +87,9 @@ class Engine:
         self.leak_n = 0
         self.crowd = np.zeros((self.grid.h, self.grid.w))
         self.hotspots: list[dict] = []
+        self.active_since: int | None = None   # first tick with an alarm or evacuation stage
+        self._clear_pause_done = False
+        self._next_cap = MAX_INCIDENT_S
         self.peak_queue = {"n": 0, "label": None, "t": None}
         self.place_names = self._place_names()
         self.capacity = self._capacity()
@@ -207,6 +224,21 @@ class Engine:
 
     def field_for(self, w):
         return self.ap_dist.get(w.ap, self.dist) if w.ap else self.dist
+
+    def auto_pause_reason(self) -> str | None:
+        """Called by the server loop after each tick; a non-empty reason means 'pause now'."""
+        inc = self.incident
+        if self.active_since is None and (inc["stage"] > 0 or inc["alarms"]):
+            self.active_since = self.t
+        if (inc["all_clear_t"] is not None and not self._clear_pause_done
+                and self.t - inc["all_clear_t"] >= AFTER_CLEAR_PAUSE_S):
+            self._clear_pause_done = True
+            return "ALL CLEAR was reached a minute ago"
+        if self._next_cap and self.active_since is not None and self.t - self.active_since >= self._next_cap:
+            mins = self._next_cap // 60
+            self._next_cap += MAX_INCIDENT_S
+            return f"the incident has run for {mins} simulated minutes"
+        return None
 
     # ================================================================ tick
     def tick(self):

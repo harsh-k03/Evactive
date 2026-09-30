@@ -21,4 +21,5 @@ export const api = {
   evacuate: (scope) => post('/evacuate', { scope }),
   isolate: (leak_ids = null) => post('/isolate', { leak_ids }),
   ask: (question) => post('/ask', { question }),
+  llm: (enabled) => post('/llm', { enabled }),
 }

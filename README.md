@@ -61,12 +61,28 @@ templates (marked `template` in the UI). Two ways to add an LLM:
    - macOS / Linux: `cp .env.example .env`, then open `.env` in any editor
 
    `.env` is git-ignored: never commit your token.
-3. Restart the server (Ctrl+C, then the `uvicorn` command again). The top-right pill turns green and shows the model in use (default
+3. Restart the server (Ctrl+C, then the `uvicorn` command again) and click the **AI** switch in the
+   top bar. AI text is **off by default** to save credits; add `EVACTIVE_LLM=1` to `.env` to have it
+   on at startup. The LLM pill turns green and shows the model in use (default
    `Qwen2.5-72B-Instruct`; falls back to Llama-3.3-70B or Gemma-3-27B if a model is unavailable).
 
 Free accounts get a small monthly credit; check usage at https://huggingface.co/settings/billing.
 Any chat model served by Inference Providers works: set `HF_MODEL` (comma-separated list, tried
 in order). `python hf_check.py` (in `backend/`) shows what your token can do and which models answer.
+
+**Saving credits.** The **AI** switch in the top bar turns AI text off and on while the app runs
+(off = rule-based templates, no LLM calls). It starts **off** every time the server starts, unless
+`.env` has `EVACTIVE_LLM=1`.
+LLM calls only happen while a scenario is running, and the simulation pauses itself when it is
+left going:
+
+| Setting (in `.env`) | Default | Pauses the simulation... |
+|---|---|---|
+| `EVACTIVE_IDLE_PAUSE_S` | 60 | ...when no dashboard has been open for this many seconds |
+| `EVACTIVE_MAX_INCIDENT_MIN` | 20 | ...after this many simulated minutes of incident (again every N minutes if you press Run) |
+| *(fixed)* | 1 min | ...one simulated minute after ALL CLEAR |
+
+Set either value to `0` to switch that pause off. Press **Run** to continue after any auto-pause.
 
 **Option B: Ollama (local, free, offline)**
 
@@ -81,9 +97,11 @@ in order). `python hf_check.py` (in `backend/`) shows what your token can do and
 |---|---|
 | `pip` or `uvicorn` "is not recognized" | Use `python -m pip ...` and `python -m uvicorn ...` as shown above (on Windows, `py` also works in place of `python`) |
 | Port 8000 already in use | Pick another port, e.g. `--port 8010`, and open http://localhost:8010 |
+| LLM pill says `off` | AI text is off by default: click the **AI** switch next to it |
 | LLM pill (top right) stays red | Check that `backend/.env` holds your token, restart the server, then run `python hf_check.py` in `backend/` to see what the token can do |
 | Error that a model is "not supported by any provider" | Enable providers at https://huggingface.co/settings/inference-providers or set `HF_MODEL` to another model; the app also tries fallback models by itself |
-| Reports and PA messages are marked `template` | No LLM is connected. That is the built-in fallback; everything else works normally |
+| Reports and PA messages are marked `template` | No LLM is connected, or the **AI** switch is off. That is the built-in fallback; everything else works normally |
+| Simulation stopped by itself | An auto-pause (see *Saving credits*); the reason is in the agent log. Press **Run** |
 
 ---
 
@@ -96,7 +114,8 @@ docker build -t evactive .
 docker run -p 7860:7860 -e HF_TOKEN=hf_xxx evactive
 ```
 
-Then open http://localhost:7860 (or the server's address). Leave out `-e HF_TOKEN=...` to run with
+Then open http://localhost:7860 (or the server's address) and click the **AI** switch to use the
+LLM (add `-e EVACTIVE_LLM=1` to start with it on). Leave out `-e HF_TOKEN=...` to run with
 templates only. On a server, `-p 80:7860 --restart always` serves it on the normal web port and
 restarts it after reboots.
 
@@ -124,6 +143,7 @@ Docker Spaces now need a Hugging Face PRO account.
 | Wind sliders | Change wind direction/speed; outdoor gas and smoke drift with it |
 | Operator override | Manual site/zone evacuation, manual ESD (gas isolation) |
 | Ask Evactive | Ask the LLM about the live situation |
+| **AI** switch (top right) | Turn AI-written reports/announcements on or off for this server (off uses no LLM credits) |
 | Bottom tabs | Agent activity log, detector readings, personnel muster roll |
 
 Hover over any person, detector or cell for details. Click a person in the Personnel tab
@@ -235,7 +255,7 @@ npm run build    # rebuild dist/ so the backend serves the new UI (commit dist/ 
 
 `POST /api/sim/reset {scenario_id}` · `/api/sim/play` · `/api/sim/pause` · `/api/sim/step` ·
 `/api/sim/speed {speed}` · `/api/hazard {type: fire|leak, x, y}` · `/api/wind {from_deg, speed_mps}` ·
-`/api/evacuate {scope: "site"|zone_id}` · `/api/isolate` · `/api/ask {question}` ·
+`/api/evacuate {scope: "site"|zone_id}` · `/api/isolate` · `/api/ask {question}` · `/api/llm {enabled}` ·
 `GET /api/state` · `WS /ws`. Interactive docs at http://localhost:8000/docs (while the server is running).
 
 ## Known limitations

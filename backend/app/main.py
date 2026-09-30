@@ -1,7 +1,7 @@
 """
 Evactive API server.
 
-  REST  /api/...   commands (reset, play/pause, hazards, wind, evacuation orders, ask)
+  REST  /api/...   commands (reset, play/pause, hazards, wind, evacuation orders, ask, AI on/off)
   WS    /ws        live frames pushed to every connected dashboard
   /                serves the built dashboard (frontend/dist) when present
 
@@ -22,10 +22,12 @@ from pydantic import BaseModel, Field
 
 from .agents.base import system_base
 from .agents.llm import LLMClient
-from .engine import Engine
+from .engine import Engine, _int_env
 from .layouts import LAYOUTS
 
 MAX_FPS = 10
+# Pause the simulation when no dashboard has been connected for this many (real) seconds. 0 = never.
+IDLE_PAUSE_S = _int_env("EVACTIVE_IDLE_PAUSE_S", 60)
 
 
 class Hub:
@@ -60,33 +62,65 @@ async def push_init():
     await hub.send_all(engine.init_payload())
 
 
+def auto_pause(reason: str):
+    engine.running = False
+    engine.log("System", f"Simulation auto-paused: {reason}. Press Run to continue.", "info")
+
+
 async def sim_loop():
     loop = asyncio.get_running_loop()
     last_push = 0.0
+    unwatched_since = None
     while True:
         if engine.running:
+            now = loop.time()
+            if hub.clients:
+                unwatched_since = None
+            elif unwatched_since is None:
+                unwatched_since = now
+            elif IDLE_PAUSE_S and now - unwatched_since >= IDLE_PAUSE_S:
+                auto_pause(f"no dashboard has been open for {IDLE_PAUSE_S} s (saves AI credits)")
+                unwatched_since = None
+                continue
             t0 = loop.time()
             async with lock:
                 engine.tick()
+                reason = engine.auto_pause_reason()
+                if reason:
+                    auto_pause(reason)
             now = loop.time()
-            if now - last_push >= 1 / MAX_FPS:
+            if reason or now - last_push >= 1 / MAX_FPS:
                 last_push = now
                 await push_frame()
             await asyncio.sleep(max(0.001, 1.0 / engine.speed - (loop.time() - t0)))
         else:
+            unwatched_since = None
             await asyncio.sleep(0.1)
 
 
-async def llm_watch():
-    was = None
-    while True:
-        await llm.check()
-        if llm.online != was:
-            was = llm.online
+_llm_state = None
+
+
+async def refresh_llm():
+    """Health-check the LLM and log/push when its state (on/off/online) changes."""
+    global _llm_state
+    await llm.check()
+    state = (llm.enabled, llm.online)
+    if state != _llm_state:
+        _llm_state = state
+        if not llm.enabled:
+            engine.log("System", "AI text is OFF: agents use rule-based templates (no LLM credits used). "
+                       "Turn it on with the AI switch in the top bar.", "info")
+        else:
             engine.log("System", f"LLM {'online: ' + llm.model if llm.online else 'offline - agents use rule-based templates'}"
                        + ("" if llm.online or not llm.last_error else f" ({llm.last_error})"),
                        "info" if llm.online else "warn")
-            await push_frame()
+        await push_frame()
+
+
+async def llm_watch():
+    while True:
+        await refresh_llm()
         await asyncio.sleep(20)
 
 
@@ -135,6 +169,10 @@ class EvacReq(BaseModel):
 
 class IsolateReq(BaseModel):
     leak_ids: list[str] | None = None
+
+
+class LLMReq(BaseModel):
+    enabled: bool
 
 
 class AskReq(BaseModel):
@@ -246,11 +284,20 @@ async def isolate(req: IsolateReq):
     return {"ok": True, "isolated": done}
 
 
+@app.post("/api/llm")
+async def set_llm(req: LLMReq):
+    """Turn AI-written text on or off for this server (applies to every viewer)."""
+    llm.set_enabled(req.enabled)
+    await refresh_llm()
+    return {"ok": True, "llm": llm.status()}
+
+
 @app.post("/api/ask")
 async def ask(req: AskReq):
     facts = engine.agents["pre"][1].facts()
     if not llm.online:
-        return {"answer": "The language model is offline, so here is the live fact sheet instead:\n"
+        why = "AI text is switched off" if not llm.enabled else "The language model is offline"
+        return {"answer": f"{why}, so here is the live fact sheet instead:\n"
                           + json.dumps(facts, indent=1), "llm": False}
     sys = system_base(engine) + (" You are the Evactive assistant answering the control-room operator. Answer in at most "
                          "4 sentences using only the live facts. If the facts don't cover the question, say so.")

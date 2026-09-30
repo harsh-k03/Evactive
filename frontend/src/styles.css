@@ -35,11 +35,21 @@ button, select, input { font: inherit; color: inherit; }
 .clocks .mono { font-size: 15px; font-weight: 600; }
 .allclear { color: var(--ok); font-weight: 700; font-size: 11px; border: 1px solid #166534; padding: 3px 8px; border-radius: 4px; }
 .controls { display: flex; gap: 6px; align-items: center; margin-left: auto; }
-.status { display: flex; gap: 6px; }
+.status { display: flex; gap: 6px; align-items: center; }
 .pill { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 3px 8px; border-radius: 99px; border: 1px solid; }
 .pill.ok { color: #4ade80; border-color: #166534; background: #0b1f14; }
 .pill.warn { color: #fbbf24; border-color: #713f12; background: #1f1607; }
 .pill.bad { color: #f87171; border-color: #7f1d1d; background: #1f0b0b; }
+.pill.muted { color: #94a3b8; border-color: #334155; background: #111827; }
+.ai-switch { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  color: #94a3b8; background: none; border: none; padding: 0 2px; cursor: pointer; font-family: inherit; }
+.ai-switch:disabled { opacity: .55; cursor: default; }
+.ai-switch .track { position: relative; width: 26px; height: 14px; border-radius: 99px; background: #334155; transition: background .15s; }
+.ai-switch .knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; transition: transform .15s; }
+.ai-switch.on { color: #4ade80; }
+.ai-switch.on .track { background: #166534; }
+.ai-switch.on .knob { transform: translateX(12px); background: #4ade80; }
+.ai-switch:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; border-radius: 4px; }
 
 select, input[type=text], .ask input { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; outline: none; }
 select { max-width: 300px; }

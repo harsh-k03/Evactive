@@ -11,7 +11,8 @@ Configure with environment variables or a `backend/.env` file:
   HF_MODEL=Qwen/Qwen2.5-72B-Instruct # optional; comma-separated list, tried in order
   OLLAMA_URL=http://localhost:11434
   OLLAMA_MODEL=qwen2.5:3b
-  EVACTIVE_LLM=0                     # disable the LLM entirely (templates only)
+  EVACTIVE_LLM=1                     # start with AI text ON (default is off, to save credits);
+                                     # the dashboard's AI switch (POST /api/llm) turns it on/off
 """
 from __future__ import annotations
 
@@ -60,7 +61,7 @@ HF_MODELS = list(dict.fromkeys([m.strip() for m in os.getenv("HF_MODEL", "").spl
 HF_MODEL = HF_MODELS[0]
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
-LLM_ENABLED = os.getenv("EVACTIVE_LLM", "1") != "0"
+LLM_ENABLED = os.getenv("EVACTIVE_LLM", "0").strip().lower() in ("1", "true", "yes", "on")
 
 
 class LLMClient:
@@ -77,6 +78,12 @@ class LLMClient:
         self.calls = 0
         self.tokens = 0
         self._client = httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0))
+
+    def set_enabled(self, on: bool):
+        """Operator switch: when off, no LLM calls are made and agents use templates."""
+        self.enabled = bool(on)
+        if not self.enabled:
+            self.online = False
 
     # ------------------------------------------------------------------ health
     async def check(self) -> bool:
