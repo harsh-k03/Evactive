@@ -7,3 +7,4 @@ frontend/src
 .git
 *.md
 !README.md
+docs

@@ -21,6 +21,32 @@ communicate as the incident develops.
 WebSocket · LLM via Hugging Face Inference Providers (or local Ollama) for situation reports,
 bilingual (English/Hindi) PA announcements and operator Q&A.
 
+## Screenshots
+
+**Site evacuation: fuel gas leak at the furnace burner (Float Glass Plant).** Gas plume over the
+melting furnace, live routes to three assembly points, muster count and agent log.
+
+![Site evacuation during a fuel gas leak](docs/screenshots/02-site-evacuation-gas-leak.png)
+
+**Zone evacuation: hydrogen leak (Pharma API Plant).** Only the affected zones move; the
+Commander agent triggers the ESD shutdown valve, and the PA goes out in English and Hindi.
+
+![Zone evacuation with ESD decision](docs/screenshots/03-zone-evacuation-esd.png)
+
+**Two simultaneous rack fires (High-Bay Distribution Warehouse).** Fire and smoke spread
+through the rack halls; two people are trapped and the muster board tracks them.
+
+![Two rack fires with trapped workers](docs/screenshots/04-twin-rack-fires-trapped.png)
+
+**Canteen fire at shift change (Auto Components Plant).** Exit E4 is blocked and AP3 is
+closed, so routes are rebuilt live; the Personnel tab lists every worker's status.
+
+![Personnel view with a blocked exit](docs/screenshots/05-personnel-blocked-exit.png)
+
+**Normal operations.** All detectors healthy, everyone at work.
+
+![Plant overview in normal state](docs/screenshots/01-overview-float-glass.png)
+
 ---
 
 ## Run it locally
